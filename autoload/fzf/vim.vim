@@ -659,7 +659,7 @@ function! fzf#vim#gitfiles(args, ...)
   let preview = printf(
     \ 'bash -c "if [[ {1} =~ M ]]; then %s; else %s {-1}; fi"',
     \ executable('delta')
-      \ ? 'git -C ' . root .' diff -- {-1} | delta --file-style=omit | sed 1d'
+      \ ? 'git -C ' . root .' diff -- {-1} | delta --width $FZF_PREVIEW_COLUMNS --file-style=omit | sed 1d'
       \ : 'git -C ' . root .' diff --color=always -- {-1} | sed 1,4d',
     \ s:bin.preview)
   let wrapped = fzf#wrap({
@@ -713,20 +713,10 @@ function! s:bufopen(lines)
     endif
   endif
   let cmd = s:action_for(a:lines[0])
-
-  call s:open_buffer_with_action(b, cmd)
-endfunction
-
-function! s:open_buffer_with_action(buffer, action) abort
-  if 'tab drop' ==# a:action
-    execute 'silent tab drop ' . bufname(a:buffer + 0)
-    return
+  if !empty(cmd)
+    execute 'silent' cmd
   endif
-
-  if !empty(a:action)
-    execute 'silent' a:action
-  endif
-  execute 'buffer' a:buffer
+  execute 'buffer' b
 endfunction
 
 function! fzf#vim#_format_buffer(b)
@@ -1228,16 +1218,16 @@ function! s:commits_sink(lines)
 endfunction
 
 function! s:commits(buffer_local, args)
-  let l:git_root = s:get_git_root()
-  if empty(l:git_root)
+  let s:git_root = s:get_git_root()
+  if empty(s:git_root)
     return s:warn('Not in git repository')
   endif
 
-  let source = 'git -C ' . l:git_root . ' log '.get(g:, 'fzf_commits_log_options', '--color=always '.fzf#shellescape('--format=%C(auto)%h%d %s %C(green)%cr'))
-  let current = expand('%:p')
+  let source = 'git log '.get(g:, 'fzf_commits_log_options', '--color=always '.fzf#shellescape('--format=%C(auto)%h%d %s %C(green)%cr'))
+  let current = expand('%')
   let managed = 0
   if !empty(current)
-    call system('git -C '. l:git_root . ' show '.fzf#shellescape(current).' 2> '.(s:is_win ? 'nul' : '/dev/null'))
+    call system('git show '.fzf#shellescape(current).' 2> '.(s:is_win ? 'nul' : '/dev/null'))
     let managed = !v:shell_error
   endif
 
@@ -1269,7 +1259,7 @@ function! s:commits(buffer_local, args)
   if !s:is_win && &columns > s:wide
     let suffix = executable('delta') ? '| delta' : '--color=always'
     call extend(options.options,
-          \ ['--preview', 'echo {} | grep -o "[a-f0-9]\{7,\}" | head -1 | xargs git -C ' . l:git_root . ' show --format=format: ' . suffix])
+    \ ['--preview', 'echo {} | grep -o "[a-f0-9]\{7,\}" | head -1 | xargs git show --format=format: ' . suffix])
   endif
 
   return s:fzf(a:buffer_local ? 'bcommits' : 'commits', options, a:args)
